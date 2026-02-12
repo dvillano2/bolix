@@ -186,3 +186,4 @@ def single_walk(
         index_storage,
         hash_storage_size,
     )
+    backtrack(....)
