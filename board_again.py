@@ -76,7 +76,7 @@ def board_interior_points(side: int, depth: int):
     return valid_board(side, depth) - board_edges(side, depth)
 
 
-############# MASKING FOR REMOVAL PART ################################
+############# MASKS FOR WINNING PART ################################
 
 
 def shift_board(board, shift):
