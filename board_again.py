@@ -79,15 +79,6 @@ def board_interior_points(side: int, depth: int):
 ############# MASKS FOR WINNING PART ################################
 
 
-def shift_board(board, shift):
-    """
-    shift is given as integer
-    """
-    height, _ = board.shape
-    row_shift = shift // height
-    col_shift = shift % height
-    return F.pad(board, (row_shift, 0, col_shift, 0))
-
 
 def pointed_dir_win_with_slide(
     shift: int,
