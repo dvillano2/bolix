@@ -79,7 +79,6 @@ def board_interior_points(side: int, depth: int):
 ############# MASKS FOR WINNING PART ################################
 
 
-
 def pointed_dir_win_with_slide(
     shift: int,
     slide: int,
@@ -183,8 +182,88 @@ def all_wins(winning_threshold: int, side: int, depth: int):
     mask = torch.zeros([height * width, 3, winning_threshold, height, width])
     for shift in flattened_shifts:
         int_shift = int(shift.item())
-        if int_shift != 1:
+        if int_shift != 0:
             mask[int_shift] = pointed_wins(
                 int_shift, winning_threshold, side, depth
             )
     return mask
+
+
+############# Masking for removal ####################
+
+
+def pointed_dir_opponent_mask(
+    shift: int,
+    length: int,
+    winning_threshold: int,
+    direction: list[int],
+    side: int,
+    depth: int,
+):
+    if length >= winning_threshold:
+        raise ValueError("length needs to be less that win threshold")
+    interior = valid_board(side, depth) - board_edges(side, depth)
+    height, width = interior.shape
+    row_shift = shift // width
+    col_shift = shift % width
+    mask = empty_board(side, depth)
+    row_jump = direction[0]
+    col_jump = direction[1]
+    for i in range(1, length + 1):
+        row_spot = int(row_shift + row_jump * i)
+        col_spot = int(col_shift + col_jump * i)
+        if 0 <= row_spot < height and 0 <= col_spot < width:
+            mask[row_spot, col_spot] = 1
+        else:
+            return empty_board(side, depth)
+    return (mask <= interior).all() * mask
+
+
+def pointed_dir_opponent_mask_all_lengths(
+    shift: int,
+    winning_threshold: int,
+    direction: list[int],
+    side: int,
+    depth: int,
+):
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    masks = torch.zeros([winning_threshold - 1, height, width])
+    for i in range(winning_threshold - 1):
+        masks[i] = pointed_dir_opponent_mask(
+            shift, i + 1, winning_threshold, direction, side, depth
+        )
+    return masks
+
+
+def pointed_opponent_mask(
+    shift: int, winning_threshold: int, side: int, depth: int
+):
+    directions = [[0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    masks = torch.zeros([6, winning_threshold - 1, height, width])
+    for i, direction in enumerate(directions):
+        masks[i] = pointed_dir_opponent_mask_all_lengths(
+            shift, winning_threshold, direction, side, depth
+        )
+    return masks
+
+
+def full_opponent_mask(winning_threshold: int, side: int, depth: int):
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    flattened_shifts = all_shifts(side, depth)
+    mask = torch.zeros(
+        [height * width, 6, winning_threshold - 1, height, width]
+    )
+    for shift in flattened_shifts:
+        int_shift = int(shift.item())
+        if int_shift != 0:
+            mask[int_shift] = pointed_opponent_mask(
+                int_shift, winning_threshold, side, depth
+            )
+    return mask
+
+
+all_shifts(5, 6).view(board_height(5, 6), board_width(5, 6))
