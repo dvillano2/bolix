@@ -266,4 +266,90 @@ def full_opponent_mask(winning_threshold: int, side: int, depth: int):
     return mask
 
 
-all_shifts(5, 6).view(board_height(5, 6), board_width(5, 6))
+############ Player masks for determining removal ##########
+
+
+def pointed_dir_player_mask(
+    shift: int,
+    gap: int,
+    winning_threshold: int,
+    direction: list[int],
+    side: int,
+    depth: int,
+):
+    if gap >= winning_threshold:
+        raise ValueError("length needs to be less that win threshold")
+    board = valid_board(side, depth)
+    height, width = board.shape
+    row_shift = shift // width
+    col_shift = shift % width
+    mask = empty_board(side, depth)
+    row_jump = direction[0]
+    col_jump = direction[1]
+    row_spot = int(row_shift + row_jump * gap + 1)
+    col_spot = int(col_shift + col_jump * gap + 1)
+    if 0 <= row_spot < height and 0 <= col_spot < width:
+        mask[row_spot, col_spot] = 1
+    else:
+        return empty_board(side, depth)
+    return (mask <= board).all() * mask
+
+
+def pointed_dir_player_mask_all_gaps(
+    shift: int,
+    winning_threshold: int,
+    direction: list[int],
+    side: int,
+    depth: int,
+):
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    masks = torch.zeros([winning_threshold - 1, height, width])
+    for i in range(winning_threshold - 1):
+        masks[i] = pointed_dir_player_mask(
+            shift, i + 1, winning_threshold, direction, side, depth
+        )
+    return masks
+
+
+def pointed_player_mask(
+    shift: int, winning_threshold: int, side: int, depth: int
+):
+    directions = [[0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    masks = torch.zeros([6, winning_threshold - 1, height, width])
+    for i, direction in enumerate(directions):
+        masks[i] = pointed_dir_player_mask_all_gaps(
+            shift, winning_threshold, direction, side, depth
+        )
+    return masks
+
+
+def full_player_mask(winning_threshold: int, side: int, depth: int):
+    height = board_height(side, depth)
+    width = board_width(side, depth)
+    flattened_shifts = all_shifts(side, depth)
+    mask = torch.zeros(
+        [height * width, 6, winning_threshold - 1, height, width]
+    )
+    for shift in flattened_shifts:
+        int_shift = int(shift.item())
+        if int_shift != 0:
+            mask[int_shift] = pointed_player_mask(
+                int_shift, winning_threshold, side, depth
+            )
+    return mask
+
+
+#### integration of masks with next moves #####
+
+
+def detect_win(move: int, player_board: torch.Tensor, wins_mask: torch.Tensor):
+    """make sure the new move is present in the player board"""
+    wins_through_move = wins_mask[move]
+    actual_wins = (wins_through_move * player_board == wins_through_move).all(
+        dim=(-2, -1)
+    )
+    combined_wins = wins_through_move[actual_wins].sum(dim=0).clamp(max=1)
+    return combined_wins.any().item(), combined_wins
