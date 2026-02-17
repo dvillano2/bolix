@@ -389,3 +389,61 @@ def detect_removal(
         opponent_mask_through_move * actual_removal[..., None, None]
     ).sum(dim=pattern_dims)
     return possible_removals.any(dim=(-2, -1)), possible_removals
+
+
+#### get next arrangement #####
+
+
+def batch_remove(
+    width: int,
+    always_invalid: torch.Tensor,
+    moves: torch.Tensor,
+    state_planes: torch.Tensor,
+):
+    to_remove = state_planes[:, 1, 0, 0] == 1
+    if not to_remove.any():
+        return
+    removals = state_planes[to_remove]
+    removal_moves = moves[to_remove]
+    removals[:, 3:, :, :] = torch.roll(removals[:, 3, :, :], shifts=1, dims=1)
+    removals[:, 3, :, :] = removals[:, 5, :, :]
+    removals[:, 2, :, :] = (
+        removals[:, 3, :, :] + removals[:, 4, :, :] + always_invalid
+    )
+    removals[:, 0, :, :] = 1 - removals[:, 0, :, :]
+    removals[:, 1, :, :] = 1 - removals[:, 1, :, :]
+
+    removals[
+        torch.arange(len(removals)),
+        3,
+        removal_moves // width,
+        removal_moves % width,
+    ] = 0
+    state_planes[to_remove] = removals
+    return
+
+
+def apply_moves(
+    height: int,
+    width: int,
+    active: torch.Tensor,
+    moves: torch.Tensor,
+    state_planes: torch.Tensor,
+    wins_mask: torch.Tensor,
+    player_removal_mask: torch.Tensor,
+    opponent_removal_mask: torch.Tensor,
+):
+    """
+    state_planes is dim: batch, num_planes, height, width
+    first plane is all zeros if its white, all one if its black
+    the second of these planes is all 0's if it is a placement
+    all 1's if its an oppoent removal
+    the third is a the forbidden choices, so if its placment
+    all the players stones on the board, plus a possible forbidden spot
+    from past move removals, and then all invalid spots.
+    if its a removal, anything that isn't in the removal mask
+    the rest of the planes are player/opponent states alternating.
+    the player tensor keeps track of which player is moving for
+    state hashing purposes
+    """
+    pass
