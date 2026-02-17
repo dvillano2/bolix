@@ -345,11 +345,31 @@ def full_player_mask(winning_threshold: int, side: int, depth: int):
 #### integration of masks with next moves #####
 
 
-def detect_win(move: int, player_board: torch.Tensor, wins_mask: torch.Tensor):
+def detect_wins(
+    moves: torch.Tensor, player_board: torch.Tensor, wins_mask: torch.Tensor
+):
     """make sure the new move is present in the player board"""
-    wins_through_move = wins_mask[move]
-    actual_wins = (wins_through_move * player_board == wins_through_move).all(
-        dim=(-2, -1)
+    wins_through_move = wins_mask[moves]
+    batch, height, width = player_board.shape
+    pattern_dims = tuple(range(1, wins_mask.ndim - 2))
+    board = player_board.view(batch, *(1,) * len(pattern_dims), height, width)
+    actual_wins = (wins_through_move <= board).all(dim=(-2, -1))
+    combined_wins = (
+        (wins_through_move * actual_wins[..., None, None])
+        .sum(dim=pattern_dims)
+        .clamp(max=1)
     )
-    combined_wins = wins_through_move[actual_wins].sum(dim=0).clamp(max=1)
-    return combined_wins.any().item(), combined_wins
+    return combined_wins.any(dim=(-2, -1)), combined_wins
+
+
+def detect_removal(
+    move: int,
+    player_bard: torch.Tensor,
+    opponent_board: torch.Tensor,
+    player_mask: torch.Tensor,
+    opponenet_mask: torch.Tensor,
+):
+    player_mask_through_move = player_mask[move]
+    opponent_mask_through_move = oppent_mask[move]
+    actual_removal = ()
+    pass
