@@ -189,7 +189,7 @@ def all_wins(winning_threshold: int, side: int, depth: int):
     return mask
 
 
-############# Masking for removal ####################
+############# Opponent masking for removal ####################
 
 
 def pointed_dir_opponent_mask(
@@ -286,8 +286,8 @@ def pointed_dir_player_mask(
     mask = empty_board(side, depth)
     row_jump = direction[0]
     col_jump = direction[1]
-    row_spot = int(row_shift + row_jump * gap + 1)
-    col_spot = int(col_shift + col_jump * gap + 1)
+    row_spot = int(row_shift + row_jump * (gap + 1))
+    col_spot = int(col_shift + col_jump * (gap + 1))
     if 0 <= row_spot < height and 0 <= col_spot < width:
         mask[row_spot, col_spot] = 1
     else:
@@ -352,8 +352,10 @@ def detect_wins(
     wins_through_move = wins_mask[moves]
     batch, height, width = player_board.shape
     pattern_dims = tuple(range(1, wins_mask.ndim - 2))
-    board = player_board.view(batch, *(1,) * len(pattern_dims), height, width)
-    actual_wins = (wins_through_move <= board).all(dim=(-2, -1))
+    expanded_board = player_board.view(
+        batch, *(1,) * len(pattern_dims), height, width
+    )
+    actual_wins = (wins_through_move <= expanded_board).all(dim=(-2, -1))
     combined_wins = (
         (wins_through_move * actual_wins[..., None, None])
         .sum(dim=pattern_dims)
@@ -364,12 +366,26 @@ def detect_wins(
 
 def detect_removal(
     move: int,
-    player_bard: torch.Tensor,
+    player_board: torch.Tensor,
     opponent_board: torch.Tensor,
-    player_mask: torch.Tensor,
-    opponenet_mask: torch.Tensor,
+    player_removal_mask: torch.Tensor,
+    opponent_removal_mask: torch.Tensor,
 ):
-    player_mask_through_move = player_mask[move]
-    opponent_mask_through_move = oppent_mask[move]
-    actual_removal = ()
-    pass
+    player_mask_through_move = player_removal_mask[move]
+    opponent_mask_through_move = opponent_removal_mask[move]
+    batch, height, width = player_board.shape
+    pattern_dims = tuple(range(1, player_removal_mask.ndim - 2))
+    expanded_player_board = player_board.view(
+        batch, *(1,) * len(pattern_dims), height, width
+    )
+    expanded_opponent_board = opponent_board.view(
+        batch, *(1,) * len(pattern_dims), height, width
+    )
+    actual_removal = (
+        (player_mask_through_move <= expanded_player_board)
+        & (opponent_mask_through_move <= expanded_opponent_board)
+    ).all(dim=(-2, -1))
+    possible_removals = (
+        opponent_mask_through_move * actual_removal[..., None, None]
+    ).sum(dim=pattern_dims)
+    return possible_removals.any(dim=(-2, -1)), possible_removals
