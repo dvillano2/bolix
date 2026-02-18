@@ -400,19 +400,38 @@ def batch_remove(
     moves: torch.Tensor,
     state_planes: torch.Tensor,
 ):
+    """
+    -top plane in player (all zeros or all ones, if all twos, game is done)
+    -second plane is put down a piece (all zeros), or remove (all ones)
+    -third plane is forbidden spots (all invalids, all pieces currently
+    on the board and a possible extra forbidden from previous removal)
+    -rest is last n spots alternating, so  fourth plane is one on all
+    the pieces for the player currently moving, fifth is current opponent
+    position etc
+    """
+    # 1 corresponds to removal, 0 to placment, 2 to finished
     to_remove = state_planes[:, 1, 0, 0] == 1
     if not to_remove.any():
         return
     removals = state_planes[to_remove]
     removal_moves = moves[to_remove]
+    # shift the board states down one and set the top to the most
+    # recent oppenet set, they will be placing next, note that
+    # even the piece that will be removed is forbidden on the next turn
     removals[:, 3:, :, :] = torch.roll(removals[:, 3, :, :], shifts=1, dims=1)
     removals[:, 3, :, :] = removals[:, 5, :, :]
+
+    # switch players
+    removals[:, 0, :, :] = 1 - removals[:, 0, :, :]
+    # switch to placement
+    removals[:, 1, :, :] = 1 - removals[:, 1, :, :]
+    # forbidden spots are all current player, all oppent pieces, including the
+    # piece to be removed and all the invalid spots
     removals[:, 2, :, :] = (
         removals[:, 3, :, :] + removals[:, 4, :, :] + always_invalid
     )
-    removals[:, 0, :, :] = 1 - removals[:, 0, :, :]
-    removals[:, 1, :, :] = 1 - removals[:, 1, :, :]
 
+    # remove the selected piece
     removals[
         torch.arange(len(removals)),
         3,
