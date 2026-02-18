@@ -401,10 +401,12 @@ def batch_remove(
     state_planes: torch.Tensor,
 ):
     """
-    -top plane in player (all zeros or all ones, if all twos, game is done)
+    -top plane in player (all zeros or all ones, if top corner is two,
+    game is done)
     -second plane is put down a piece (all zeros), or remove (all ones)
     -third plane is forbidden spots (all invalids, all pieces currently
     on the board and a possible extra forbidden from previous removal)
+    or winning confguration if the game is over
     -rest is last n spots alternating, so  fourth plane is one on all
     the pieces for the player currently moving, fifth is current opponent
     position etc
@@ -439,6 +441,88 @@ def batch_remove(
         removal_moves % width,
     ] = 0
     state_planes[to_remove] = removals
+    return
+
+
+def batch_placement(
+    width: int,
+    empty_board_tensor: torch.tensor,
+    always_invalid: torch.Tensor,
+    moves: torch.Tensor,
+    state_planes: torch.Tensor,
+    wins_mask: torch.Tensor,
+    player_removal_mask: torch.Tensor,
+    opponent_removal_mask: torch.Tensor,
+):
+    """
+    -top plane in player (all zeros or all ones, if top corner is two,
+    game is done)
+    -second plane is put down a piece (all zeros), or remove (all ones)
+    -third plane is forbidden spots (all invalids, all pieces currently
+    on the board and a possible extra forbidden from previous removal)
+    or it is winning configuration if the game is over
+    -rest is last n spots alternating, so  fourth plane is one on all
+    the pieces for the player currently moving, fifth is current opponent
+    position etc
+    """
+    # 1 corresponds to removal, 0 to placment, 2 to finished
+    to_place = state_planes[:, 1, 0, 0] == 0
+    if not to_place.any():
+        return
+    placements = state_planes[to_place]
+    placement_moves = moves[to_place]
+    # shift only the player down every other and add the pieces
+    placements[:, 3::2, :, :] = torch.roll(
+        placements[:, 3::2, :, :], shifts=1, dims=1
+    )
+    placements[:, 3, :, :] = placements[:, 5, :, :]
+
+    # check for wins and mark them if they're there
+    wins_present, win_configuration = detect_wins(
+        placement_moves, placements[:, 3, :, :], wins_mask
+    )
+    if wins_present.any():
+        placements[wins_present, 1, :, :] = 2
+        placements[wins_present, 2, :, :] = win_configuration
+
+        not_over = placements[~wins_present]
+        not_over_moves = placement_moves[~wins_present]
+
+    if ~wins_present.any():
+        # check for removals
+        removal, removal_configuration = detect_removal(
+            not_over_moves,
+            not_over[:, 3, :, :],
+            not_over[:, 4, :, :],
+            player_removal_mask,
+            opponent_removal_mask,
+        )
+        if removal.any():
+            not_over[removal, 1, :, :] = 1
+            not_over[removal, 2, :, :] = (
+                empty_board_tensor - removal_configuration
+            )
+
+        # modify the stack and rest for moves that have no removal
+
+        if ~removal.any():
+            not_over[~removal, 0, :, :] = 1 - not_over[~removal, 0, :, :]
+            not_over[~removal, 2, :, :] = (
+                not_over[~removal, 3, :, :]
+                + not_over[~removal, 4, :, :]
+                + always_invalid
+            )
+
+            permute = torch.arange(state_planes.shape[1])
+            tail = permute[3:]
+            tail = tail.view(-1, 2)
+            tail = tail[:, [1, 0]]
+            tail = tail.flatten()
+            permute[3:] = tail
+            not_over[~removal, :, :, :] = not_over[~removal, permute, :, :]
+
+        placements[~wins_present] = not_over
+    state_planes[to_place] = placements
     return
 
 
