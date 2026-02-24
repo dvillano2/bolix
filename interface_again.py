@@ -11,6 +11,9 @@ from board_again import (
     valid_board,
 )
 
+ROWS = 2
+COLS = 3
+
 
 class BoardVisualizer:
     def __init__(self, **config):
@@ -26,7 +29,7 @@ class BoardVisualizer:
         self.plane_states = torch.zeros(
             self.boards, self.plane_depth, self.height, self.width
         )
-        self.plane_states[:, 2:, :, :] = 1 - valid_board(self.side, self.depth)
+        self.plane_states[:, 2, :, :] = 1 - valid_board(self.side, self.depth)
         self.moves = torch.zeros(self.boards)
 
         self.all_wins_mask = all_wins(
@@ -38,43 +41,123 @@ class BoardVisualizer:
         self.player_mask = full_player_mask(
             self.winning_threshold, self.side, self.depth
         )
-        self.draw_board()
 
-    def draw_board(self):
-        cmap = ListedColormap(["grey", "red", "blue"])
-
-        fig, axes = plt.subplots(2, 3, figsize=(15, 6))
-        fig.suptitle("current game states")
-
-        to_plot = torch.zeros(self.boards, self.height, self.width)
-        forbidden_mask = self.plane_states[:, 2, :, :]
-        # if the current player is white
-        to_plot += (1 - self.plane_states[:, 0, :, :]) * (
-            self.plane_states[:, 3, :, :] + 2 * self.plane_states[:, 4, :, :]
+        # plotting stuff
+        self.cmap = ListedColormap(
+            ["grey", "red", "blue", "coral", "deeppink"]
         )
-        # if the current player is black
-        to_plot += self.plane_states[:, 0, :, :] * (
-            2 * self.plane_states[:, 3, :, :] + self.plane_states[:, 4, :, :]
-        )
+        self.fig, self.axes = plt.subplots(2, 3, figsize=(15, 6))
+        self.fig.suptitle("current game states")
+        self.fig.canvas.mpl_connect("button_press_event", self.on_click)
 
-        for i in range(self.boards):
-            r = i // 3
-            c = i % 3
-            board = to_plot[i]
-            forbidden = torch.clamp(forbidden_mask[i] - board, min=0)
-            overlay = np.where(forbidden.numpy() == 1, 1.0, np.nan)
-            print(forbidden)
+        self.to_plot = torch.zeros(self.boards, self.height, self.width)
+        self.base_images = [[None for _ in range(COLS)] for _ in range(ROWS)]
 
-            axes[r, c].imshow(
-                board.numpy(),
-                cmap=cmap,
-            )
-            axes[r, c].imshow(overlay, cmap="grey", alpha=0.9)
-            axes[r, c].set_title(f"Game {i+1}")
-            axes[r, c].axis("off")
+        self.overlay = [None for _ in range(self.boards)]
+        self.overlay_images = [
+            [None for _ in range(COLS)] for _ in range(ROWS)
+        ]
+
+        self.next_moves = [None for _ in range(self.boards)]
+        self.next_move_images = [
+            [None for _ in range(COLS)] for _ in range(ROWS)
+        ]
+
+        self.update_fig()
 
         plt.tight_layout()
         plt.show()
+
+    def _update_pieces(self):
+        self.to_plot = torch.zeros(self.boards, self.height, self.width)
+        # if the current player is white
+        self.to_plot += (1 - self.plane_states[:, 0, :, :]) * (
+            self.plane_states[:, 3, :, :] + 2 * self.plane_states[:, 4, :, :]
+        )
+        # if the current player is black
+        self.to_plot += self.plane_states[:, 0, :, :] * (
+            2 * self.plane_states[:, 3, :, :] + self.plane_states[:, 4, :, :]
+        )
+
+    def _update_unoccupied_forbidden(self):
+        unoccupied_forbidden = torch.clamp(
+            self.plane_states[:, 2, :, :] - self.to_plot, min=0
+        )
+        for i in range(self.boards):
+            self.overlay[i] = np.where(
+                unoccupied_forbidden[i].numpy() == 1, 1.0, np.nan
+            )
+
+    def update_fig(self):
+        self._update_pieces()
+        self._update_unoccupied_forbidden()
+        for i in range(self.boards):
+            r = i // COLS
+            c = i % COLS
+            board = self.to_plot[i]
+
+            base_im = self.axes[r, c].imshow(
+                board.numpy(),
+                cmap=self.cmap,
+            )
+            self.base_images[r][c] = base_im
+            overlay_im = self.axes[r, c].imshow(
+                self.overlay[i], cmap="Greys_r"
+            )
+            self.overlay_images[r][c] = overlay_im
+            self.axes[r, c].set_title(f"Game {i+1}")
+            self.axes[r, c].axis("off")
+        self.fig.canvas.draw()
+
+    def on_click(self, event):
+        if event.inaxes is None:
+            return None
+        for r in range(ROWS):
+            for c in range(COLS):
+                board = r * COLS + c
+                if event.inaxes == self.axes[r, c]:
+                    base_image = self.base_images[r][c]
+                    row_index, col_index = self.click_to_square(
+                        event, base_image
+                    )
+                    if self.plane_states[board, 2, row_index, col_index] == 1:
+                        # some kind of warning, this is not allowed
+                        pass
+                    else:
+                        spot = row_index * self.width + col_index
+                        self.moves[board] = spot
+                        self.render_next_moves()
+
+    def click_to_square(self, event, image):
+        x_min, x_max, y_min, y_max = image.get_extent()
+        col_index = int((event.xdata - x_min) / (x_max - x_min) * self.width)
+        row_index = int((event.ydata - y_min) / (y_max - y_min) * self.height)
+        return self.height - 1 - row_index, col_index
+
+    def render_next_moves(self):
+        self._update_next_moves()
+        for i in range(self.boards):
+            r = i // COLS
+            c = i % COLS
+
+            print(self.next_moves[i])
+            print("")
+
+            next_move_im = self.axes[r, c].imshow(
+                self.next_moves[i], cmap=self.cmap
+            )
+            self.next_move_images[r][c] = next_move_im
+
+    def _update_next_moves(self):
+        for i in range(self.boards):
+            self.next_moves[i] = np.full(
+                shape=(self.height, self.width), fill_value=np.nan
+            )
+            move = self.moves[i]
+            move_row = int(move // self.width)
+            move_col = int(move % self.width)
+            print(move_row, move_col)
+            self.next_moves[i][move_row, move_col] = 4
 
 
 if __name__ == "__main__":
