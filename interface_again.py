@@ -168,9 +168,7 @@ class BoardVisualizer:
             return
         move_row = int(move // self.width)
         move_col = int(move % self.width)
-        print(move_row, move_col)
         self.next_moves[board, move_row, move_col] = 4
-        print(self.next_moves[board])
 
 
 if __name__ == "__main__":
