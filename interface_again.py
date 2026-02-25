@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, BoundaryNorm
 from board_again import (
     board_height,
     board_width,
@@ -30,7 +30,7 @@ class BoardVisualizer:
             self.boards, self.plane_depth, self.height, self.width
         )
         self.plane_states[:, 2, :, :] = 1 - valid_board(self.side, self.depth)
-        self.moves = torch.zeros(self.boards)
+        self.moves = torch.zeros(self.boards) - 1
 
         self.all_wins_mask = all_wins(
             self.winning_threshold, self.side, self.depth
@@ -46,6 +46,9 @@ class BoardVisualizer:
         self.cmap = ListedColormap(
             ["grey", "red", "blue", "coral", "deeppink"]
         )
+        self.norm = BoundaryNorm(
+            boundaries=[-0.5, 0.5, 1.5, 2.5, 3.5, 4.5], ncolors=self.cmap.N
+        )
         self.fig, self.axes = plt.subplots(2, 3, figsize=(15, 6))
         self.fig.suptitle("current game states")
         self.fig.canvas.mpl_connect("button_press_event", self.on_click)
@@ -58,10 +61,22 @@ class BoardVisualizer:
             [None for _ in range(COLS)] for _ in range(ROWS)
         ]
 
-        self.next_moves = [None for _ in range(self.boards)]
+        self.next_moves = np.full(
+            (self.boards, self.height, self.width), np.nan, dtype=float
+        )
         self.next_move_images = [
             [None for _ in range(COLS)] for _ in range(ROWS)
         ]
+        for r in range(ROWS):
+            for c in range(COLS):
+                board = r * COLS + c
+                masked = np.ma.masked_invalid(self.next_moves[board])
+                self.next_move_images[r][c] = self.axes[r, c].imshow(
+                    masked,
+                    cmap=self.cmap,
+                    norm=self.norm,
+                    zorder=10,
+                )
 
         self.update_fig()
 
@@ -99,6 +114,7 @@ class BoardVisualizer:
             base_im = self.axes[r, c].imshow(
                 board.numpy(),
                 cmap=self.cmap,
+                norm=self.norm,
             )
             self.base_images[r][c] = base_im
             overlay_im = self.axes[r, c].imshow(
@@ -126,7 +142,7 @@ class BoardVisualizer:
                     else:
                         spot = row_index * self.width + col_index
                         self.moves[board] = spot
-                        self.render_next_moves()
+                        self.render_next_moves(board)
 
     def click_to_square(self, event, image):
         x_min, x_max, y_min, y_max = image.get_extent()
@@ -134,30 +150,27 @@ class BoardVisualizer:
         row_index = int((event.ydata - y_min) / (y_max - y_min) * self.height)
         return self.height - 1 - row_index, col_index
 
-    def render_next_moves(self):
-        self._update_next_moves()
-        for i in range(self.boards):
-            r = i // COLS
-            c = i % COLS
+    def render_next_moves(self, board):
+        self._update_next_moves(board)
 
-            print(self.next_moves[i])
-            print("")
+        r = board // COLS
+        c = board % COLS
 
-            next_move_im = self.axes[r, c].imshow(
-                self.next_moves[i], cmap=self.cmap
-            )
-            self.next_move_images[r][c] = next_move_im
+        masked = np.ma.masked_invalid(self.next_moves[board])
+        self.next_move_images[r][c].set_data(masked)
 
-    def _update_next_moves(self):
-        for i in range(self.boards):
-            self.next_moves[i] = np.full(
-                shape=(self.height, self.width), fill_value=np.nan
-            )
-            move = self.moves[i]
-            move_row = int(move // self.width)
-            move_col = int(move % self.width)
-            print(move_row, move_col)
-            self.next_moves[i][move_row, move_col] = 4
+        self.fig.canvas.draw()
+
+    def _update_next_moves(self, board):
+        self.next_moves[board, :, :] = np.nan
+        move = self.moves[board]
+        if move.item() < 0:
+            return
+        move_row = int(move // self.width)
+        move_col = int(move % self.width)
+        print(move_row, move_col)
+        self.next_moves[board, move_row, move_col] = 4
+        print(self.next_moves[board])
 
 
 if __name__ == "__main__":
