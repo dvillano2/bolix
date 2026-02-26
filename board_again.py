@@ -446,7 +446,7 @@ def batch_remove(
 
 def batch_placement(
     width: int,
-    empty_board_tensor: torch.tensor,
+    full_board_tensor: torch.tensor,
     always_invalid: torch.Tensor,
     moves: torch.Tensor,
     state_planes: torch.Tensor,
@@ -477,6 +477,13 @@ def batch_placement(
     )
     placements[:, 3, :, :] = placements[:, 5, :, :]
 
+    placements[
+        torch.arange(len(placements)),
+        3,
+        placement_moves // width,
+        placement_moves % width,
+    ] = 1
+
     # check for wins and mark them if they're there
     wins_present, win_configuration = detect_wins(
         placement_moves, placements[:, 3, :, :], wins_mask
@@ -487,6 +494,9 @@ def batch_placement(
 
         not_over = placements[~wins_present]
         not_over_moves = placement_moves[~wins_present]
+    else:
+        not_over = placements
+        not_over_moves = placement_moves
 
     if ~wins_present.any():
         # check for removals
@@ -499,9 +509,12 @@ def batch_placement(
         )
         if removal.any():
             not_over[removal, 1, :, :] = 1
-            not_over[removal, 2, :, :] = (
-                empty_board_tensor - removal_configuration
-            )
+            print(not_over[removal, :, :, :].shape)
+            print(not_over[removal, 2, :, :].shape)
+            print(removal_configuration.shape)
+            print(full_board_tensor.shape)
+            next_forbidden = full_board_tensor - removal_configuration
+            not_over[removal, 2, :, :] = next_forbidden[removal, :, :]
 
         # modify the stack and rest for moves that have no removal
 
@@ -519,9 +532,16 @@ def batch_placement(
             tail = tail[:, [1, 0]]
             tail = tail.flatten()
             permute[3:] = tail
-            not_over[~removal, :, :, :] = not_over[~removal, permute, :, :]
+            tmp = not_over[~removal, :, :, :]
+            tmp = tmp[:, permute, :, :]
+            not_over[~removal, :, :, :] = tmp
+            # print(permute)
+            # print(not_over.shape)
+            # print(not_over[~removal, :, :, :].shape)
+            # print(not_over[~removal, permute, :, :].shape)
+            # not_over[~removal, :, :, :] = not_over[~removal, permute, :, :]
 
-        placements[~wins_present] = not_over
+        placements[~wins_present] = not_over.clone()
     state_planes[to_place] = placements
     return
 

@@ -9,6 +9,8 @@ from board_again import (
     full_opponent_mask,
     full_player_mask,
     valid_board,
+    batch_remove,
+    batch_placement,
 )
 
 ROWS = 2
@@ -22,6 +24,9 @@ class BoardVisualizer:
         self.height = board_height(self.side, self.depth)
         self.width = board_width(self.side, self.depth)
         self.winning_threshold = config["winning_threshold"]
+        self.valid_board = valid_board(self.side, self.depth)
+        self.always_invalid = 1 - self.valid_board
+        self.full_board = torch.ones(self.height, self.width)
 
         self.boards = config["boards"]
         self.plane_depth = config["plane_depth"]
@@ -29,8 +34,8 @@ class BoardVisualizer:
         self.plane_states = torch.zeros(
             self.boards, self.plane_depth, self.height, self.width
         )
-        self.plane_states[:, 2, :, :] = 1 - valid_board(self.side, self.depth)
-        self.moves = torch.zeros(self.boards) - 1
+        self.plane_states[:, 2, :, :] = self.always_invalid
+        self.moves = torch.zeros(self.boards, dtype=int) - 1
 
         self.all_wins_mask = all_wins(
             self.winning_threshold, self.side, self.depth
@@ -44,14 +49,16 @@ class BoardVisualizer:
 
         # plotting stuff
         self.cmap = ListedColormap(
-            ["grey", "red", "blue", "coral", "deeppink"]
+            ["grey", "red", "blue", "coral", "deeppink", "black"]
         )
         self.norm = BoundaryNorm(
-            boundaries=[-0.5, 0.5, 1.5, 2.5, 3.5, 4.5], ncolors=self.cmap.N
+            boundaries=[-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5],
+            ncolors=self.cmap.N,
         )
         self.fig, self.axes = plt.subplots(2, 3, figsize=(15, 6))
         self.fig.suptitle("current game states")
         self.fig.canvas.mpl_connect("button_press_event", self.on_click)
+        self.fig.canvas.mpl_connect("key_press_event", self.on_key)
 
         self.to_plot = torch.zeros(self.boards, self.height, self.width)
         self.base_images = [[None for _ in range(COLS)] for _ in range(ROWS)]
@@ -67,10 +74,22 @@ class BoardVisualizer:
         self.next_move_images = [
             [None for _ in range(COLS)] for _ in range(ROWS)
         ]
+
         for r in range(ROWS):
             for c in range(COLS):
-                board = r * COLS + c
-                masked = np.ma.masked_invalid(self.next_moves[board])
+                index = r * COLS + c
+                board = self.to_plot[index]
+                self.base_images[r][c] = self.axes[r, c].imshow(
+                    board.numpy(),
+                    cmap=self.cmap,
+                    norm=self.norm,
+                )
+                self.overlay_images[r][c] = self.axes[r, c].imshow(
+                    board.numpy(),
+                    cmap=self.cmap,
+                    norm=self.norm,
+                )
+                masked = np.ma.masked_invalid(self.next_moves[index])
                 self.next_move_images[r][c] = self.axes[r, c].imshow(
                     masked,
                     cmap=self.cmap,
@@ -100,7 +119,7 @@ class BoardVisualizer:
         )
         for i in range(self.boards):
             self.overlay[i] = np.where(
-                unoccupied_forbidden[i].numpy() == 1, 1.0, np.nan
+                unoccupied_forbidden[i].numpy() == 1, 5.0, np.nan
             )
 
     def update_fig(self):
@@ -110,19 +129,12 @@ class BoardVisualizer:
             r = i // COLS
             c = i % COLS
             board = self.to_plot[i]
-
-            base_im = self.axes[r, c].imshow(
-                board.numpy(),
-                cmap=self.cmap,
-                norm=self.norm,
-            )
-            self.base_images[r][c] = base_im
-            overlay_im = self.axes[r, c].imshow(
-                self.overlay[i], cmap="Greys_r"
-            )
-            self.overlay_images[r][c] = overlay_im
-            self.axes[r, c].set_title(f"Game {i+1}")
-            self.axes[r, c].axis("off")
+            self.base_images[r][c].set_data(board)
+            overlay = self.overlay[i]
+            self.overlay_images[r][c].set_data(overlay)
+            masked = np.ma.masked_invalid(self.next_moves[i])
+            self.next_move_images[r][c].set_data(masked)
+            self.next_move_images[r][c].set_visible(False)
         self.fig.canvas.draw()
 
     def on_click(self, event):
@@ -130,6 +142,7 @@ class BoardVisualizer:
             return None
         for r in range(ROWS):
             for c in range(COLS):
+                self.next_move_images[r][c].set_visible(True)
                 board = r * COLS + c
                 if event.inaxes == self.axes[r, c]:
                     base_image = self.base_images[r][c]
@@ -170,8 +183,34 @@ class BoardVisualizer:
         move_col = int(move % self.width)
         self.next_moves[board, move_row, move_col] = 4
 
+    def apply_moves(self):
+        batch_remove(
+            self.width, self.always_invalid, self.moves, self.plane_states
+        )
+        batch_placement(
+            self.width,
+            self.full_board,
+            self.always_invalid,
+            self.moves,
+            self.plane_states,
+            self.all_wins_mask,
+            self.player_mask,
+            self.opponent_mask,
+        )
+        self.next_moves = np.full(
+            (self.boards, self.height, self.width), np.nan, dtype=float
+        )
+        self.moves = torch.zeros(self.boards, dtype=int) - 1
+        self.update_fig()
+
+    def on_key(self, event):
+        if event.key == "enter":
+            print("BUTTON HIT")
+            self.apply_moves()
+
 
 if __name__ == "__main__":
+    torch.set_printoptions(threshold=torch.inf)
     board_config = {
         "boards": 6,
         "side": 5,
