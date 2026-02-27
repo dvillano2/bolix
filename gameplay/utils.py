@@ -1,4 +1,5 @@
 import torch
+from dataclasses import dataclass
 
 
 def board_height(side: int, depth: int):
@@ -33,19 +34,22 @@ def valid_board(side: int, depth: int):
     return board
 
 
-def board_data(side: int, depth: int):
-    return {
-        "height": board_height(side, depth),
-        "width": board_width(side, depth),
-        "valid_board": valid_board(side, depth),
-    }
+@dataclass
+class Board:
+    valid: torch.Tensor
+    winning_threshold: int
+
+    @property
+    def height(self):
+        return self.valid.shape[0]
+
+    @property
+    def width(self):
+        return self.valid.shape[1]
 
 
-def pull_board_data(board_data: dict):
-    height = board_data["height"]
-    width = board_data["width"]
-    board = board_data["valid_board"]
-    return height, width, board
+def make_board(side: int, depth: int, winning_threshold):
+    return Board(valid_board(side, depth), winning_threshold)
 
 
 def board_edges(side: int, depth: int):
