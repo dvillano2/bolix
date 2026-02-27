@@ -202,8 +202,9 @@ def pointed_dir_opponent_mask(
 ):
     if length >= winning_threshold:
         raise ValueError("length needs to be less that win threshold")
-    interior = valid_board(side, depth) - board_edges(side, depth)
-    height, width = interior.shape
+    # interior = valid_board(side, depth) - board_edges(side, depth)
+    vb = valid_board(side, depth)
+    height, width = vb.shape
     row_shift = shift // width
     col_shift = shift % width
     mask = empty_board(side, depth)
@@ -216,7 +217,8 @@ def pointed_dir_opponent_mask(
             mask[row_spot, col_spot] = 1
         else:
             return empty_board(side, depth)
-    return (mask <= interior).all() * mask
+    # return (mask <= interior).all() * mask
+    return (mask <= vb).all() * mask
 
 
 def pointed_dir_opponent_mask_all_lengths(
@@ -381,10 +383,11 @@ def detect_removal(
     expanded_opponent_board = opponent_board.view(
         batch, *(1,) * len(pattern_dims), height, width
     )
+    mask_nonzero = player_mask_through_move.any(dim=(-2, -1))
     actual_removal = (
         (player_mask_through_move <= expanded_player_board)
         & (opponent_mask_through_move <= expanded_opponent_board)
-    ).all(dim=(-2, -1))
+    ).all(dim=(-2, -1)) & mask_nonzero
     possible_removals = (
         opponent_mask_through_move * actual_removal[..., None, None]
     ).sum(dim=pattern_dims)

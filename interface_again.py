@@ -1,3 +1,6 @@
+from datetime import datetime
+from pathlib import Path
+import pickle
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,7 +20,7 @@ COLS = 3
 
 
 class BoardVisualizer:
-    def __init__(self, **config):
+    def __init__(self, save: bool = False, **config):
         self.side = config["side"]
         self.depth = config["depth"]
         self.height = board_height(self.side, self.depth)
@@ -45,6 +48,17 @@ class BoardVisualizer:
         self.player_mask = full_player_mask(
             self.winning_threshold, self.side, self.depth
         )
+
+        self.count = 0
+        self.history: dict = {}
+        self.save = save
+        if self.save:
+            self.history["side"] = self.side
+            self.history["depth"] = self.depth
+            self.history["winning_threshold"] = self.winning_threshold
+            self.history["boards"] = self.boards
+            self.history[self.count] = {}
+            self.history[self.count]["state"] = self.plane_states
 
         # plotting stuff
         self.cmap = ListedColormap(
@@ -194,7 +208,20 @@ class BoardVisualizer:
             self.player_mask,
             self.opponent_mask,
         )
-        print(self.plane_states[:, [0, 1, 3, 4], :, :])
+        if self.save:
+            self.history[self.count]["moves"] = self.moves
+            self.count += 1
+            self.history[self.count] = {}
+            self.history[self.count]["state"] = self.plane_states
+            if self.count == 25:
+                now = datetime.now()
+                formatted_string = now.strftime("%Y_%m_%d%H%M%S")
+                file_name = formatted_string + ".pkl"
+                project_home = Path.cwd()
+                file = project_home / "tests" / "examples" / file_name
+                with open(file, "wb") as f:
+                    pickle.dump(self.history, f)
+
         self.next_moves = np.full(
             (self.boards, self.height, self.width), np.nan, dtype=float
         )
@@ -203,7 +230,6 @@ class BoardVisualizer:
 
     def on_key(self, event):
         if event.key == "enter":
-            print("BUTTON HIT")
             self.apply_moves()
 
 
@@ -216,4 +242,4 @@ if __name__ == "__main__":
         "winning_threshold": 5,
         "plane_depth": 13,
     }
-    BoardVisualizer(**board_config)
+    BoardVisualizer(True, **board_config)
