@@ -475,7 +475,7 @@ def batch_placement(
 
     if wins_present.any():
         placements[wins_present, 1, :, :] = 2
-        placements[wins_present, 2, :, :] = win_configuration
+        placements[wins_present, 2, :, :] = win_configuration[wins_present]
 
     active_mask = ~wins_present
     if not active_mask.any():

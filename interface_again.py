@@ -134,11 +134,11 @@ class BoardVisualizer:
             masked = np.ma.masked_invalid(self.next_moves[i])
             self.next_move_images[r][c].set_data(masked)
             self.next_move_images[r][c].set_visible(False)
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
 
     def on_click(self, event):
         if event.inaxes is None:
-            return None
+            return
         for r in range(ROWS):
             for c in range(COLS):
                 self.next_move_images[r][c].set_visible(True)
@@ -155,6 +155,7 @@ class BoardVisualizer:
                         spot = row_index * self.width + col_index
                         self.moves[board] = spot
                         self.render_next_moves(board)
+        return
 
     def click_to_square(self, event, image):
         x_min, x_max, y_min, y_max = image.get_extent()
@@ -171,7 +172,7 @@ class BoardVisualizer:
         masked = np.ma.masked_invalid(self.next_moves[board])
         self.next_move_images[r][c].set_data(masked)
 
-        self.fig.canvas.draw()
+        self.fig.canvas.draw_idle()
 
     def _update_next_moves(self, board):
         self.next_moves[board, :, :] = np.nan
@@ -181,16 +182,6 @@ class BoardVisualizer:
         move_row = int(move // self.width)
         move_col = int(move % self.width)
         self.next_moves[board, move_row, move_col] = 4
-
-        self.all_wins_mask = all_wins(
-            self.winning_threshold, self.side, self.depth
-        )
-        self.opponent_mask = full_opponent_mask(
-            self.winning_threshold, self.side, self.depth
-        )
-        self.player_mask = full_player_mask(
-            self.winning_threshold, self.side, self.depth
-        )
 
     def apply_moves(self):
         place_and_remove(
