@@ -242,4 +242,4 @@ if __name__ == "__main__":
         "winning_threshold": 5,
         "plane_depth": 13,
     }
-    BoardVisualizer(True, **board_config)
+    BoardVisualizer(False, **board_config)
