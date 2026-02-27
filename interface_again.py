@@ -9,8 +9,7 @@ from board_again import (
     full_opponent_mask,
     full_player_mask,
     valid_board,
-    batch_remove,
-    batch_placement,
+    place_and_remove,
 )
 
 ROWS = 2
@@ -119,7 +118,7 @@ class BoardVisualizer:
         )
         for i in range(self.boards):
             self.overlay[i] = np.where(
-                unoccupied_forbidden[i].numpy() == 1, 5.0, np.nan
+                unoccupied_forbidden[i].numpy() == 1, 5.5, np.nan
             )
 
     def update_fig(self):
@@ -183,11 +182,18 @@ class BoardVisualizer:
         move_col = int(move % self.width)
         self.next_moves[board, move_row, move_col] = 4
 
-    def apply_moves(self):
-        batch_remove(
-            self.width, self.always_invalid, self.moves, self.plane_states
+        self.all_wins_mask = all_wins(
+            self.winning_threshold, self.side, self.depth
         )
-        batch_placement(
+        self.opponent_mask = full_opponent_mask(
+            self.winning_threshold, self.side, self.depth
+        )
+        self.player_mask = full_player_mask(
+            self.winning_threshold, self.side, self.depth
+        )
+
+    def apply_moves(self):
+        place_and_remove(
             self.width,
             self.full_board,
             self.always_invalid,
@@ -197,6 +203,7 @@ class BoardVisualizer:
             self.player_mask,
             self.opponent_mask,
         )
+        print(self.plane_states[:, [0, 1, 3, 4], :, :])
         self.next_moves = np.full(
             (self.boards, self.height, self.width), np.nan, dtype=float
         )
