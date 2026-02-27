@@ -499,19 +499,18 @@ def batch_placement(
         placements[removal_rows, 2] = next_forbidden[removal]
 
     # modify the stack and rest for moves that have no removal
-    if not removal.any():
-        non_removal_rows = active_indices[~removal]
-        placements[non_removal_rows, 0] = 1 - placements[non_removal_rows, 0]
-        placements[non_removal_rows, 2] = (
-            placements[non_removal_rows, 3]
-            + placements[non_removal_rows, 4]
-            + always_invalid
-        )
+    non_removal_rows = active_indices[~removal]
+    placements[non_removal_rows, 0] = 1 - placements[non_removal_rows, 0]
+    placements[non_removal_rows, 2] = (
+        placements[non_removal_rows, 3]
+        + placements[non_removal_rows, 4]
+        + always_invalid
+    )
 
-        permute = torch.arange(placements.shape[1])
-        tail = permute[3:].view(-1, 2)[:, [1, 0]].flatten()
-        permute[3:] = tail
-        placements[non_removal_rows] = placements[non_removal_rows][:, permute]
+    permute = torch.arange(placements.shape[1])
+    tail = permute[3:].view(-1, 2)[:, [1, 0]].flatten()
+    permute[3:] = tail
+    placements[non_removal_rows] = placements[non_removal_rows][:, permute]
     # print(permute)
     # print(not_over.shape)
     # print(not_over[~removal, :, :, :].shape)
