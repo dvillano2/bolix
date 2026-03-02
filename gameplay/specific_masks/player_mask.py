@@ -4,7 +4,7 @@ from gameplay.board import Board, all_shifts
 
 def pointed_dir_player_mask(
     shift: int, gap: int, direction: list[int], board: Board
-):
+) -> torch.Tensor:
     if gap >= board.winning_threshold:
         raise ValueError("length needs to be less that win threshold")
     row_shift, col_shift = shift // board.width, shift % board.width
@@ -21,7 +21,7 @@ def pointed_dir_player_mask(
 
 def pointed_dir_player_mask_all_gaps(
     shift: int, direction: list[int], board: Board
-):
+) -> torch.Tensor:
     masks = torch.zeros(
         [board.winning_threshold - 1, board.height, board.width]
     )
@@ -30,7 +30,7 @@ def pointed_dir_player_mask_all_gaps(
     return masks
 
 
-def pointed_player_mask(shift: int, board: Board):
+def pointed_player_mask(shift: int, board: Board) -> torch.Tensor:
     directions = [[0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]]
     masks = torch.zeros(
         [6, board.winning_threshold - 1, board.height, board.width]
@@ -40,7 +40,7 @@ def pointed_player_mask(shift: int, board: Board):
     return masks
 
 
-def full_player_mask(board: Board):
+def full_player_mask(board: Board) -> torch.Tensor:
     flattened_shifts = all_shifts(board)
     mask = torch.zeros(
         [
