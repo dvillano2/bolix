@@ -13,17 +13,19 @@ class Masks:
     player_mask: torch.Tensor
 
 
-def get_pattern_dims(mask: torch.Tensor):
+def get_pattern_dims(mask: torch.Tensor) -> tuple[int, ...]:
     return tuple(range(1, mask.ndim - 2))
 
 
-def get_expansion_data(mask: torch.Tensor):
+def get_expansion_data(
+    mask: torch.Tensor,
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
     batch_size, height, width = mask.shape[0], mask.shape[-2], mask.shape[-1]
     pattern_dims = get_pattern_dims(mask)
     return pattern_dims, (batch_size, *(1,) * len(pattern_dims), height, width)
 
 
-def make_masks(board: Board):
+def make_masks(board: Board) -> Masks:
     wins_mask = all_wins(board)
     opponent_mask = full_opponent_mask(board)
     player_mask = full_player_mask(board)
