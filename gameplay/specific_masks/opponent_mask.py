@@ -7,7 +7,7 @@ def pointed_dir_opponent_mask(
     length: int,
     direction: list[int],
     board: Board,
-):
+) -> torch.Tensor:
     if length >= board.winning_threshold:
         raise ValueError("slide needs to be less that win threshold")
     row_shift, col_shift = shift // board.width, shift % board.width
@@ -27,7 +27,7 @@ def pointed_dir_opponent_mask_all_lengths(
     shift: int,
     direction: list[int],
     board: Board,
-):
+) -> torch.Tensor:
     masks = torch.zeros(
         [board.winning_threshold - 1, board.height, board.width]
     )
@@ -36,7 +36,7 @@ def pointed_dir_opponent_mask_all_lengths(
     return masks
 
 
-def pointed_opponent_mask(shift: int, board: Board):
+def pointed_opponent_mask(shift: int, board: Board) -> torch.Tensor:
     directions = [[0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]]
     masks = torch.zeros(
         [6, board.winning_threshold - 1, board.height, board.width]
@@ -48,7 +48,7 @@ def pointed_opponent_mask(shift: int, board: Board):
     return masks
 
 
-def full_opponent_mask(board: Board):
+def full_opponent_mask(board: Board) -> torch.Tensor:
     flattened_shifts = all_shifts(board)
     mask = torch.zeros(
         [
