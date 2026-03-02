@@ -6,7 +6,7 @@ from gameplay.board import Board
 
 def detect_wins(
     moves: torch.Tensor, player_board: torch.Tensor, masks: Masks, board: Board
-):
+) -> tuple[torch.Tensor, torch.Tensor]:
     """make sure the new move is present in the player board"""
     wins_through_move = masks.wins_mask[moves]
     pattern_dims, expander = get_expansion_data(wins_through_move)
@@ -29,7 +29,7 @@ def detect_removal(
     player_board: torch.Tensor,
     opponent_board: torch.Tensor,
     masks: Masks,
-):
+) -> tuple[torch.Tensor, torch.Tensor]:
     player_mask_through_move = masks.player_mask[moves]
     pattern_dims, player_expander = get_expansion_data(
         player_mask_through_move
@@ -39,13 +39,11 @@ def detect_removal(
     expanded_player_board = player_board.view(player_expander)
     expanded_opponent_board = opponent_board.view(opponent_expander)
 
-    # mask_nonzero = player_mask_through_move.any(dim=(-2, -1))
     mask_nonzero = player_mask_through_move.any(dim=(-2, -1))
     actual_removal = (
         (player_mask_through_move <= expanded_player_board)
         & (opponent_mask_through_move <= expanded_opponent_board)
     ).all(dim=(-2, -1)) & mask_nonzero
-    # actual_removal = player_condition & opponent_condition & mask_nonzero
 
     possible_removals = (
         opponent_mask_through_move * actual_removal[..., None, None]
