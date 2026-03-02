@@ -13,21 +13,21 @@ class Board:
     winning_threshold: int
 
 
-def board_height(side: int, depth: int):
+def board_height(side: int, depth: int) -> int:
     return 2 * depth - 1
 
 
-def board_width(side: int, depth: int):
+def board_width(side: int, depth: int) -> int:
     return (side + depth - 1) * 2 - 1
 
 
-def empty_board(side: int, depth: int):
+def empty_board(side: int, depth: int) -> torch.Tensor:
     height = board_height(side, depth)
     width = board_width(side, depth)
     return torch.zeros(height, width)
 
 
-def valid_board(side: int, depth: int):
+def valid_board(side: int, depth: int) -> torch.Tensor:
     board = empty_board(side, depth)
     width = board_width(side, depth)
     height = board_height(side, depth)
@@ -45,7 +45,7 @@ def valid_board(side: int, depth: int):
     return board
 
 
-def make_board(side: int, depth: int, winning_threshold):
+def make_board(side: int, depth: int, winning_threshold) -> Board:
     valid = valid_board(side, depth)
     invalid = 1 - valid
     height = board_height(side, depth)
@@ -55,7 +55,7 @@ def make_board(side: int, depth: int, winning_threshold):
     return Board(valid, invalid, full, empty, height, width, winning_threshold)
 
 
-def all_shifts(board: Board):
+def all_shifts(board: Board) -> torch.Tensor:
     """
     note that it impossible for upper left
     (zero indexed when flattened)
