@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 import torch
 from gameplay.board import Board
-from gameplay.win_mask import all_wins
-from gameplay.opponent_mask import full_opponent_mask
-from gameplay.player_mask import full_player_mask
+from gameplay.specific_masks.win_mask import all_wins
+from gameplay.specific_masks.opponent_mask import full_opponent_mask
+from gameplay.specific_masks.player_mask import full_player_mask
 
 
 @dataclass
