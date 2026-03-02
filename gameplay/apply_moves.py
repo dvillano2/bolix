@@ -48,7 +48,7 @@ def batch_placement(
     masks: Masks,
     placements: torch.Tensor,
     placement_moves: torch.Tensor,
-):
+) -> torch.Tensor:
     """
     -top plane in player (all zeros or all ones, if top corner is two,
     game is done)
@@ -123,7 +123,7 @@ def place_and_remove(
     masks: Masks,
     moves: torch.Tensor,
     state_planes: torch.Tensor,
-):
+) -> None:
     """
     state_planes is dim: batch, num_planes, height, width
     first plane is all zeros if its white, all one if its black
