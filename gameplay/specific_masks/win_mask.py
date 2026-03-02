@@ -7,7 +7,7 @@ def pointed_dir_win_with_slide(
     slide: int,
     direction: list[int],
     board: Board,
-):
+) -> torch.Tensor:
     """
     winning direction gives the diretion of the win
     so for horizotal its [0, 2]
@@ -33,7 +33,7 @@ def pointed_dir_wins(
     shift: int,
     direction: list[int],
     board: Board,
-):
+) -> torch.Tensor:
     """
     returns a (winning threhold, height, width) tensor
     which is a mask for all the possible wins going
@@ -45,7 +45,7 @@ def pointed_dir_wins(
     return masks
 
 
-def pointed_wins(shift: int, board: Board):
+def pointed_wins(shift: int, board: Board) -> torch.Tensor:
     """
     returns a (3, winning threhold, height, width) tensor
     where the last three dims are describe above and the
@@ -58,7 +58,7 @@ def pointed_wins(shift: int, board: Board):
     return masks
 
 
-def all_wins(board: Board):
+def all_wins(board: Board) -> torch.Tensor:
     """
     returns a height * width, 3, winning_theshold, height, width
     tensor. If the first entry is zero, means that its not a valid
