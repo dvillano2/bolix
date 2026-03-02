@@ -19,7 +19,7 @@ def pointed_dir_opponent_mask(
         if 0 <= row_spot < board.height and 0 <= col_spot < board.width:
             mask[row_spot, col_spot] = 1
         else:
-            return torch.zeros(board.height, board.width)
+            return board.empty
     return (mask <= board.valid).all() * mask
 
 

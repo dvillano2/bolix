@@ -290,7 +290,10 @@ def pointed_dir_player_mask(
     col_jump = direction[1]
     row_spot = int(row_shift + row_jump * (gap + 1))
     col_spot = int(col_shift + col_jump * (gap + 1))
-    if 0 <= row_spot < height and 0 <= col_spot < width:
+    if (
+        0 <= row_spot < height
+        and 0 <= col_spot < width
+    ):
         mask[row_spot, col_spot] = 1
     else:
         return empty_board(side, depth)

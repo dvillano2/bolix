@@ -218,8 +218,8 @@ class BoardVisualizer:
                 formatted_string = now.strftime("%Y_%m_%d%H%M%S")
                 file_name = formatted_string + ".pkl"
                 project_home = Path.cwd()
-                file = project_home / "tests" / "examples" / file_name
-                with open(file, "wb") as f:
+                file_path = project_home / "tests" / "examples" / file_name
+                with file_path.open("wb") as f:
                     pickle.dump(self.history, f)
 
         self.next_moves = np.full(

@@ -2,6 +2,17 @@ import torch
 from dataclasses import dataclass
 
 
+@dataclass
+class Board:
+    valid: torch.Tensor
+    invalid: torch.Tensor
+    full: torch.Tensor
+    empty: torch.Tensor
+    height: int
+    width: int
+    winning_threshold: int
+
+
 def board_height(side: int, depth: int):
     return 2 * depth - 1
 
@@ -34,39 +45,17 @@ def valid_board(side: int, depth: int):
     return board
 
 
-def board_edges(side: int, depth: int):
-    """
-    mask that is one on edges of the board,
-    zero everywhere else
-    """
-    board = empty_board(side, depth)
-    width = board_width(side, depth)
+def make_board(side: int, depth: int, winning_threshold):
+    valid = valid_board(side, depth)
+    invalid = 1 - valid
     height = board_height(side, depth)
-    current_side = side
-    for row in range(height):
-        padding = (width - ((2 * (current_side - 1)) + 1)) // 2
-        spot = padding
-        for counter in range(current_side):
-            if (
-                row == 0
-                or row == height - 1
-                or counter == 0
-                or counter == current_side - 1
-            ):
-                board[row][spot] = 1
-            spot += 2
-        if row < depth - 1:
-            current_side += 1
-        else:
-            current_side -= 1
-    return board
+    width = board_width(side, depth)
+    full = torch.ones(height, width)
+    empty = torch.zeros(height, width)
+    return Board(valid, invalid, full, empty, height, width, winning_threshold)
 
 
-def board_interior_points(side: int, depth: int):
-    return valid_board(side, depth) - board_edges(side, depth)
-
-
-def all_shifts(board: "Board"):
+def all_shifts(board: Board):
     """
     note that it impossible for upper left
     (zero indexed when flattened)

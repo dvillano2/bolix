@@ -1,5 +1,5 @@
 import torch
-from gameplay.utils import Board, all_shifts
+from gameplay.board import Board, all_shifts
 
 
 def pointed_dir_player_mask(
@@ -15,7 +15,7 @@ def pointed_dir_player_mask(
     if 0 <= row_spot < board.height and 0 <= col_spot < board.width:
         mask[row_spot, col_spot] = 1
     else:
-        return torch.zeros(board.height, board.width)
+        return board.empty
     return (mask <= board.valid).all() * mask
 
 
