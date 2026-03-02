@@ -1,6 +1,6 @@
-import torch
 from dataclasses import dataclass
-from gameplay.masks import Masks
+import torch
+from gameplay.masks import Masks, get_expansion_data
 from gameplay.board import Board
 
 
@@ -9,18 +9,18 @@ def detect_wins(
 ):
     """make sure the new move is present in the player board"""
     wins_through_move = masks.wins_mask[moves]
-    expanded_board = player_board.view(masks.board_expander)
+    pattern_dims, expander = get_expansion_data(wins_through_move)
+    expanded_board = player_board.view(expander)
 
     actual_wins = (wins_through_move * expanded_board).sum(
         dim=(-2, -1)
-    ) == Board.winning_threshold
+    ) == board.winning_threshold
 
     combined_wins = (
         (wins_through_move * actual_wins[..., None, None])
-        .sum(dim=masks.wins_pattern_dims)
+        .sum(dim=pattern_dims)
         .clamp(max=1)
     )
-    combined_wins = combined_wins.to(player_board.dtype)
     return combined_wins.any(dim=(-2, -1)), combined_wins
 
 
@@ -31,25 +31,23 @@ def detect_removal(
     masks: Masks,
 ):
     player_mask_through_move = masks.player_mask[moves]
-    opponent_mask_through_move = masks.opponent_mask[moves]
-    expanded_player_board = player_board.view(masks.position_board_expander)
-    expanded_opponent_board = opponent_board.view(
-        masks.position_board_expander
+    pattern_dims, player_expander = get_expansion_data(
+        player_mask_through_move
     )
+    opponent_mask_through_move = masks.opponent_mask[moves]
+    _, opponent_expander = get_expansion_data(opponent_mask_through_move)
+    expanded_player_board = player_board.view(player_expander)
+    expanded_opponent_board = opponent_board.view(opponent_expander)
 
     # mask_nonzero = player_mask_through_move.any(dim=(-2, -1))
-    player_condition = (player_mask_through_move * expanded_player_board).sum(
-        dim=(-2, -1)
-    ) == 2
-    opponent_condition = (
-        (opponent_mask_through_move * expanded_opponent_board)
-        .eq(opponent_mask_through_move)
-        .all(dim=(-2, -1))
-    )
-    actual_removal = player_condition & opponent_condition
+    mask_nonzero = player_mask_through_move.any(dim=(-2, -1))
+    actual_removal = (
+        (player_mask_through_move <= expanded_player_board)
+        & (opponent_mask_through_move <= expanded_opponent_board)
+    ).all(dim=(-2, -1)) & mask_nonzero
     # actual_removal = player_condition & opponent_condition & mask_nonzero
 
     possible_removals = (
         opponent_mask_through_move * actual_removal[..., None, None]
-    ).sum(dim=masks.position_pattern_dims)
+    ).sum(pattern_dims)
     return possible_removals.any(dim=(-2, -1)), possible_removals

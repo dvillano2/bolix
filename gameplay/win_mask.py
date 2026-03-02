@@ -1,4 +1,4 @@
-from gameplay.utils import Board, all_shifts
+from gameplay.board import Board, all_shifts
 import torch
 
 

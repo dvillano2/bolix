@@ -1,5 +1,5 @@
 import torch
-from gamplay.utils import Board, all_shifts
+from gameplay.board import Board, all_shifts
 
 
 def pointed_dir_opponent_mask(

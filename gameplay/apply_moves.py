@@ -1,7 +1,7 @@
 import torch
-from gameplay.detect import DetectionData, detect_wins, detect_removal
 from gameplay.board import Board
 from gameplay.masks import Masks
+from gameplay.detect import detect_wins, detect_removal
 
 
 def batch_remove(

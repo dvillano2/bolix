@@ -5,15 +5,10 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
-from board_again import (
-    board_height,
-    board_width,
-    all_wins,
-    full_opponent_mask,
-    full_player_mask,
-    valid_board,
-    place_and_remove,
-)
+from gameplay.board import Board, make_board
+from gameplay.masks import Masks, make_masks
+from gameplay.apply_moves import place_and_remove
+
 
 ROWS = 2
 COLS = 3
@@ -23,31 +18,21 @@ class BoardVisualizer:
     def __init__(self, save: bool = False, **config):
         self.side = config["side"]
         self.depth = config["depth"]
-        self.height = board_height(self.side, self.depth)
-        self.width = board_width(self.side, self.depth)
-        self.winning_threshold = config["winning_threshold"]
-        self.valid_board = valid_board(self.side, self.depth)
-        self.always_invalid = 1 - self.valid_board
-        self.full_board = torch.ones(self.height, self.width)
-
-        self.boards = config["boards"]
+        self.board: Board = make_board(
+            self.side, self.depth, config["winning_threshold"]
+        )
+        self.batch_size = config["batch_size"]
         self.plane_depth = config["plane_depth"]
+        self.masks: Masks = make_masks(self.board)
 
         self.plane_states = torch.zeros(
-            self.boards, self.plane_depth, self.height, self.width
+            self.batch_size,
+            self.plane_depth,
+            self.board.height,
+            self.board.width,
         )
-        self.plane_states[:, 2, :, :] = self.always_invalid
-        self.moves = torch.zeros(self.boards, dtype=int) - 1
-
-        self.all_wins_mask = all_wins(
-            self.winning_threshold, self.side, self.depth
-        )
-        self.opponent_mask = full_opponent_mask(
-            self.winning_threshold, self.side, self.depth
-        )
-        self.player_mask = full_player_mask(
-            self.winning_threshold, self.side, self.depth
-        )
+        self.plane_states[:, 2, :, :] = self.board.invalid
+        self.moves = torch.zeros(self.batch_size, dtype=int) - 1
 
         self.count = 0
         self.history: dict = {}
@@ -55,8 +40,8 @@ class BoardVisualizer:
         if self.save:
             self.history["side"] = self.side
             self.history["depth"] = self.depth
-            self.history["winning_threshold"] = self.winning_threshold
-            self.history["boards"] = self.boards
+            self.history["winning_threshold"] = self.board.winning_threshold
+            self.history["boards"] = self.batch_size
             self.history[self.count] = {}
             self.history[self.count]["state"] = self.plane_states
 
@@ -73,16 +58,20 @@ class BoardVisualizer:
         self.fig.canvas.mpl_connect("button_press_event", self.on_click)
         self.fig.canvas.mpl_connect("key_press_event", self.on_key)
 
-        self.to_plot = torch.zeros(self.boards, self.height, self.width)
+        self.to_plot = torch.zeros(
+            self.batch_size, self.board.height, self.board.width
+        )
         self.base_images = [[None for _ in range(COLS)] for _ in range(ROWS)]
 
-        self.overlay = [None for _ in range(self.boards)]
+        self.overlay = [None for _ in range(self.batch_size)]
         self.overlay_images = [
             [None for _ in range(COLS)] for _ in range(ROWS)
         ]
 
         self.next_moves = np.full(
-            (self.boards, self.height, self.width), np.nan, dtype=float
+            (self.batch_size, self.board.height, self.board.width),
+            np.nan,
+            dtype=float,
         )
         self.next_move_images = [
             [None for _ in range(COLS)] for _ in range(ROWS)
@@ -116,7 +105,9 @@ class BoardVisualizer:
         plt.show()
 
     def _update_pieces(self):
-        self.to_plot = torch.zeros(self.boards, self.height, self.width)
+        self.to_plot = torch.zeros(
+            self.batch_size, self.board.height, self.board.width
+        )
         # if the current player is white
         self.to_plot += (1 - self.plane_states[:, 0, :, :]) * (
             self.plane_states[:, 3, :, :] + 2 * self.plane_states[:, 4, :, :]
@@ -130,7 +121,7 @@ class BoardVisualizer:
         unoccupied_forbidden = torch.clamp(
             self.plane_states[:, 2, :, :] - self.to_plot, min=0
         )
-        for i in range(self.boards):
+        for i in range(self.batch_size):
             self.overlay[i] = np.where(
                 unoccupied_forbidden[i].numpy() == 1, 5.5, np.nan
             )
@@ -138,7 +129,7 @@ class BoardVisualizer:
     def update_fig(self):
         self._update_pieces()
         self._update_unoccupied_forbidden()
-        for i in range(self.boards):
+        for i in range(self.batch_size):
             r = i // COLS
             c = i % COLS
             board = self.to_plot[i]
@@ -166,16 +157,20 @@ class BoardVisualizer:
                         # some kind of warning, this is not allowed
                         pass
                     else:
-                        spot = row_index * self.width + col_index
+                        spot = row_index * self.board.width + col_index
                         self.moves[board] = spot
                         self.render_next_moves(board)
         return
 
     def click_to_square(self, event, image):
         x_min, x_max, y_min, y_max = image.get_extent()
-        col_index = int((event.xdata - x_min) / (x_max - x_min) * self.width)
-        row_index = int((event.ydata - y_min) / (y_max - y_min) * self.height)
-        return self.height - 1 - row_index, col_index
+        col_index = int(
+            (event.xdata - x_min) / (x_max - x_min) * self.board.width
+        )
+        row_index = int(
+            (event.ydata - y_min) / (y_max - y_min) * self.board.height
+        )
+        return self.board.height - 1 - row_index, col_index
 
     def render_next_moves(self, board):
         self._update_next_moves(board)
@@ -193,20 +188,16 @@ class BoardVisualizer:
         move = self.moves[board]
         if move.item() < 0:
             return
-        move_row = int(move // self.width)
-        move_col = int(move % self.width)
+        move_row = int(move // self.board.width)
+        move_col = int(move % self.board.width)
         self.next_moves[board, move_row, move_col] = 4
 
-    def apply_moves(self):
+    def vis_apply_moves(self):
         place_and_remove(
-            self.width,
-            self.full_board,
-            self.always_invalid,
+            self.board,
+            self.masks,
             self.moves,
             self.plane_states,
-            self.all_wins_mask,
-            self.player_mask,
-            self.opponent_mask,
         )
         if self.save:
             self.history[self.count]["moves"] = self.moves
@@ -223,20 +214,22 @@ class BoardVisualizer:
                     pickle.dump(self.history, f)
 
         self.next_moves = np.full(
-            (self.boards, self.height, self.width), np.nan, dtype=float
+            (self.batch_size, self.board.height, self.board.width),
+            np.nan,
+            dtype=float,
         )
-        self.moves = torch.zeros(self.boards, dtype=int) - 1
+        self.moves = torch.zeros(self.batch_size, dtype=int) - 1
         self.update_fig()
 
     def on_key(self, event):
         if event.key == "enter":
-            self.apply_moves()
+            self.vis_apply_moves()
 
 
 if __name__ == "__main__":
     torch.set_printoptions(threshold=torch.inf)
     board_config = {
-        "boards": 6,
+        "batch_size": 6,
         "side": 5,
         "depth": 6,
         "winning_threshold": 5,
