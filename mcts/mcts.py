@@ -3,6 +3,8 @@ from gameplay.board import Board
 from gameplay.masks import Masks
 from model.model import Model
 
+EXPLORATION_CONSTANT = 1.5
+
 
 class MCTS:
     def __init__(
@@ -13,6 +15,7 @@ class MCTS:
         total_nodes: int,
         model: Model,  # typing later
     ):
+        self.exploration_constant = EXPLORATION_CONSTANT
         self.player: torch.Tensor = plane_states[:, 0, 0, 0]
         self.plane_states: torch.Tensor = plane_states.clone()
         self.batch_size: int = self.plane_states.shape[0]
@@ -77,8 +80,11 @@ class MCTS:
         self.policy[self.indexer, self.free_index, :] = logits
         self.free_index += 1
 
-    def expand(self) -> torch.Tensor:
+    def call_model(self) -> tuple[torch.Tensor, torch.Tensor]:
         logits, values = self.model.foward(self.plane_states)
+        return logits, values
+
+    def expand(self, logits: torch.Tensor) -> None:
         self.policy[self.indexer, self.free_index, :] = logits
         self.parents[self.indexer, self.free_index, 0] = self.current_index
         self.parents[self.indexer, self.free_index, 1] = self.moves
@@ -99,7 +105,6 @@ class MCTS:
         )
         self.current_index = self.free_index
         self.free_index += 1
-        return values
 
     def backtrack(self, values: torch.Tensor) -> None:
         parents = self.parents[self.indexer, self.current_index]
@@ -113,3 +118,6 @@ class MCTS:
             )
             parents = self.parents[self.indexer, parent_index]
             live_parents = parents[:, 0] >= 0
+
+    def walk(self) -> None:
+        self.current_index._zero()
