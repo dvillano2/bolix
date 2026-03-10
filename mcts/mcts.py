@@ -120,13 +120,22 @@ class MCTS:
             live_parents = parents[:, 0] >= 0
 
     def select_moves(self):
-        W = self.accumulation[self.indexer, self.current_index]
-        N = self.visits[self.indexer, self.current_index]
-        P = self.policy[self.indexer, self.current_index]
-        Q = torch.where(N > 0, W / N, torch.zeros_like(W))
-        N_sum = torch.sum(N, dim=(-1), keepdim=True).expand_as(N)
-        U = self.exploration_constant * P + torch.sqrt(N_sum) / (N + 1)
-        self.moves = torch.argmax(Q + U, dim=(-1))
+        w_accumulation = self.accumulation[self.indexer, self.current_index]
+        n_visits = self.visits[self.indexer, self.current_index]
+        p_policies = self.policy[self.indexer, self.current_index]
+        q_quality = torch.where(
+            n_visits > 0,
+            w_accumulation / n_visits,
+            torch.zeros_like(w_accumulation),
+        )
+        n_sum_all_visits = torch.sum(
+            n_visits, dim=(-1), keepdim=True
+        ).expand_as(n_visits)
+        u_exploration_bonus = (
+            self.exploration_constant * p_policies
+            + torch.sqrt(n_sum_all_visits) / (n_visits + 1)
+        )
+        self.moves = torch.argmax(q_quality + u_exploration_bonus, dim=(-1))
 
     def walk(self) -> None:
         self.current_index._zero()
