@@ -119,11 +119,11 @@ def batch_placement(
 
 
 def place_and_remove(
+    state_planes: torch.Tensor,
     board: Board,
     masks: Masks,
     moves: torch.Tensor,
-    state_planes: torch.Tensor,
-) -> None:
+) -> torch.Tensor:
     """
     state_planes is dim: batch, num_planes, height, width
     first plane is all zeros if its white, all one if its black
@@ -155,4 +155,5 @@ def place_and_remove(
 
     state_planes[to_remove] = removals
     state_planes[to_place] = placements
-    return
+    return state_planes
+

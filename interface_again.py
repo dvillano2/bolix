@@ -193,11 +193,11 @@ class BoardVisualizer:
         self.next_moves[board, move_row, move_col] = 4
 
     def vis_apply_moves(self):
-        place_and_remove(
+        self.plane_states = place_and_remove(
+            self.plane_states,
             self.board,
             self.masks,
             self.moves,
-            self.plane_states,
         )
         if self.save:
             self.history[self.count]["moves"] = self.moves
