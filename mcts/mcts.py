@@ -107,6 +107,7 @@ class MCTS:
         self.free_index += 1
 
     def backtrack(self, values: torch.Tensor) -> None:
+        # self.parents stores parent and move take from the parent
         parents = self.parents[self.indexer, self.current_index]
         live_parents = parents[:, 0] >= 0
         while (live_parents).any():
@@ -139,3 +140,5 @@ class MCTS:
 
     def walk(self) -> None:
         self.current_index._zero()
+
+
