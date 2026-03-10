@@ -132,7 +132,7 @@ class MCTS:
         w_accumulation = self.accumulation[active_indices, self.current_index]
         n_visits = self.visits[active_indices, self.current_index]
         p_policies = self.policy[active_indices, self.current_index]
-        q_quality = torch.where(
+        q_values = torch.where(
             n_visits > 0,
             w_accumulation / n_visits,
             torch.zeros_like(w_accumulation),
@@ -145,7 +145,7 @@ class MCTS:
             + torch.sqrt(n_sum_all_visits) / (n_visits + 1)
         )
         self.moves[active_indices] = torch.argmax(
-            q_quality + u_exploration_bonus, dim=(-1)
+            q_values + u_exploration_bonus, dim=(-1)
         )
 
     # NEED TO MODIFY TO ACCOUNT FOR FINISHED GAMES
