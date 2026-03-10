@@ -1,6 +1,8 @@
 import torch
+from typing import Optional
 from gameplay.board import Board
 from gameplay.masks import Masks
+from gameplay.apply_moves import place_and_remove
 from model.model import Model
 
 EXPLORATION_CONSTANT = 1.5
@@ -21,6 +23,8 @@ class MCTS:
         self.batch_size: int = self.plane_states.shape[0]
         self.total_nodes: int = total_nodes
         self.total_moves: int = board.height * board.width
+        self.board = board
+        self.masks = masks
         self.model = model
 
         # POLICIES P in lit
@@ -120,10 +124,14 @@ class MCTS:
             parents = self.parents[self.indexer, parent_index]
             live_parents = parents[:, 0] >= 0
 
-    def select_moves(self):
-        w_accumulation = self.accumulation[self.indexer, self.current_index]
-        n_visits = self.visits[self.indexer, self.current_index]
-        p_policies = self.policy[self.indexer, self.current_index]
+    def select_moves(self, active_mask: torch.Tensor | None = None):
+        if active_mask is not None:
+            active_indices = self.indexer[active_mask]
+        else:
+            active_indices = self.indexer
+        w_accumulation = self.accumulation[active_indices, self.current_index]
+        n_visits = self.visits[active_indices, self.current_index]
+        p_policies = self.policy[active_indices, self.current_index]
         q_quality = torch.where(
             n_visits > 0,
             w_accumulation / n_visits,
@@ -136,9 +144,36 @@ class MCTS:
             self.exploration_constant * p_policies
             + torch.sqrt(n_sum_all_visits) / (n_visits + 1)
         )
-        self.moves = torch.argmax(q_quality + u_exploration_bonus, dim=(-1))
+        self.moves[active_indices] = torch.argmax(
+            q_quality + u_exploration_bonus, dim=(-1)
+        )
 
-    def walk(self) -> None:
-        self.current_index._zero()
+    # NEED TO MODIFY TO ACCOUNT FOR FINISHED GAMES
+    def walk(self, plane_states) -> None:
+        # back to considered move
+        self.current_index.zero_()
+        local_plane_states: torch.Tensor = plane_states.clone()
 
-
+        self.select_moves()
+        expanded_and_unexpanded = self.children[
+            self.indexer, self.current_index, self.moves
+        ]
+        already_expanded = expanded_and_unexpanded != -1
+        while already_expanded.any():
+            walking_indices = self.indexer[already_expanded]
+            walking_current_index = self.current_index[already_expanded]
+            walking_moves = self.moves[already_expanded]
+            local_plane_states[already_expanded] = place_and_remove(
+                local_plane_states[already_expanded],
+                self.board,
+                self.masks,
+                walking_moves,
+            )
+            self.current_index[already_expanded] = self.children[
+                walking_indices, walking_current_index, walking_moves
+            ]
+            self.select_moves(active_mask=already_expanded)
+            expanded_and_unexpanded = self.children[
+                self.indexer, self.current_index, self.moves
+            ]
+            already_expanded = expanded_and_unexpanded != -1
