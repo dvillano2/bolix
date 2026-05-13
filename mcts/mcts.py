@@ -80,7 +80,7 @@ class MCTS:
         self.moves = torch.zeros([self.batch_size], dtype=torch.int)
 
     def establish_root(self):
-        logits, value = self.model.foward(self.plane_states)
+        logits, _ = self.model.foward(self.plane_states)
         self.policy[self.indexer, self.free_index, :] = logits
         self.free_index += 1
 
