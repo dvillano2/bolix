@@ -23,9 +23,9 @@ class MCTS:
         self.batch_size: int = self.plane_states.shape[0]
         self.total_nodes: int = total_nodes
         self.total_moves: int = board.height * board.width
-        self.board = board
-        self.masks = masks
-        self.model = model
+        self.board: Board = board
+        self.masks: Masks = masks
+        self.model: Model = model
 
         # POLICIES P in lit
         self.policy = torch.zeros(
@@ -85,13 +85,22 @@ class MCTS:
         self.free_index += 1
 
     def call_model(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """assumption is that the below funciton will handle wins,
+        and make appropirate logits in those places... for the time
+        being lets say make them all 2, so if you're walking and hit all 2's
+        (eqivalently a single 2)
+        and make appropriate values 1
+        might not literally be the forward method"""
         logits, values = self.model.foward(self.plane_states)
         return logits, values
 
     def expand(self, logits: torch.Tensor) -> None:
-        self.policy[self.indexer, self.free_index, :] = logits
-        self.parents[self.indexer, self.free_index, 0] = self.current_index
-        self.parents[self.indexer, self.free_index, 1] = self.moves
+        not_over = logits[:, 0] != 2
+        not_over_indexer = self.indexer[not_over]
+        not_over_free_index = self.free_index[not_over]
+        self.policy[not_over_indexer, not_over_free_index, :] = logits[not_over]
+        self.parents[not_over_indexer, not_over_free_index, 0] = self.current_index[not_over]
+        self.parents[not_over_indexer, not_over_free_index, 1] = self.moves[not_over]
         # update the first move anscetor
         parent_first_move = self.first_move_ancestor[
             self.indexer, self.current_index
@@ -104,11 +113,11 @@ class MCTS:
         )
 
         ####
-        self.children[self.indexer, self.current_index, self.moves] = (
-            self.free_index
+        self.children[not_over_indexer, self.current_index[not_over], self.moves[not_over]] = (
+            self.free_index[not_over]
         )
-        self.current_index = self.free_index
-        self.free_index += 1
+        self.current_index[not_over] = self.free_index[not_over]
+        self.free_index[not_over] += 1
 
     def backtrack(self, values: torch.Tensor) -> None:
         # self.parents stores parent and move take from the parent
@@ -149,7 +158,12 @@ class MCTS:
         )
 
     # NEED TO MODIFY TO ACCOUNT FOR FINISHED GAMES
-    def walk(self, plane_states) -> None:
+    # Its the two part in the definition of keep walking
+    def walk(self, plane_states) -> :
+        """
+        gets self.current index to unexpanded spot or winning spot
+        using the MCTS decision function
+        """
         # back to considered move
         self.current_index.zero_()
         local_plane_states: torch.Tensor = plane_states.clone()
@@ -158,22 +172,27 @@ class MCTS:
         expanded_and_unexpanded = self.children[
             self.indexer, self.current_index, self.moves
         ]
-        already_expanded = expanded_and_unexpanded != -1
-        while already_expanded.any():
-            walking_indices = self.indexer[already_expanded]
-            walking_current_index = self.current_index[already_expanded]
-            walking_moves = self.moves[already_expanded]
-            local_plane_states[already_expanded] = place_and_remove(
-                local_plane_states[already_expanded],
+        keep_walking = (expanded_and_unexpanded) != -1 & (
+            expanded_and_unexpanded != 2
+        )
+        while keep_walking.any():
+            walking_indices = self.indexer[keep_walking]
+            walking_current_index = self.current_index[keep_walking]
+            walking_moves = self.moves[keep_walking]
+            local_plane_states[keep_walking] = place_and_remove(
+                local_plane_states[keep_walking],
                 self.board,
                 self.masks,
                 walking_moves,
             )
-            self.current_index[already_expanded] = self.children[
+            self.current_index[keep_walking] = self.children[
                 walking_indices, walking_current_index, walking_moves
             ]
-            self.select_moves(active_mask=already_expanded)
+            self.select_moves(active_mask=keep_walking)
             expanded_and_unexpanded = self.children[
                 self.indexer, self.current_index, self.moves
             ]
-            already_expanded = expanded_and_unexpanded != -1
+            keep_walking = (expanded_and_unexpanded) != -1 & (
+                expanded_and_unexpanded != 2
+            )
+        return local_plane_states
