@@ -71,6 +71,12 @@ class MCTS:
             [self.batch_size],
             dtype=torch.int32,
         )
+        # tracks the sign for backtracking and updating values
+        self.sign_tracker = torch.ones(
+            [self.batch_size, total_nodes],
+            dtype=torch.int32,
+        )
+        self.sign_indexer = torch.zeros(self.batch_size)
         # FIRST MOVE ANCESTOR, which of possible moves this node
         # came from, used when rolling over the tree
         self.first_move_ancestor = torch.zeros(
@@ -137,8 +143,11 @@ class MCTS:
             old_moves = parents[:, 1]
             self.visits[self.indexer, parent_index, old_moves] += live_parents
             self.accumulation[self.indexer, parent_index, old_moves] += (
-                live_parents * values
+                live_parents
+                * values
+                * self.sign_tracker[self.indexer, self.sign_indexer]
             )
+            self.sign_indexer[live_parents] -= 1
             parents = self.parents[self.indexer, parent_index]
             live_parents = parents[:, 0] >= 0
 
@@ -177,6 +186,11 @@ class MCTS:
         self.current_index.zero_()
         self.local_plane_states = plane_states.clone()
 
+        # set the sign tracker to one and indexer to zeros
+        self.sign_tracker.zero_()
+        self.sign_tracker += 1
+        self.sign_indexer.zero_()
+
         self.select_moves()
         expanded_and_unexpanded = self.children[
             self.indexer, self.current_index, self.moves
@@ -194,6 +208,11 @@ class MCTS:
                 self.masks,
                 walking_moves,
             )
+
+            other_player = self.local_plane_states[:, 0, 0, 0] != self.player
+            self.sign_tracker[keep_walking, other_player] = -1
+            self.sign_indexer[keep_walking] += 1
+
             self.current_index[keep_walking] = self.children[
                 walking_indices, walking_current_index, walking_moves
             ]
@@ -204,4 +223,5 @@ class MCTS:
             keep_walking = (expanded_and_unexpanded) != -1 & (
                 expanded_and_unexpanded != 2
             )
+
         return self.local_plane_states
