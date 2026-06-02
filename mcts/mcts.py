@@ -20,6 +20,7 @@ class MCTS:
         self.exploration_constant = EXPLORATION_CONSTANT
         self.player: torch.Tensor = plane_states[:, 0, 0, 0]
         self.plane_states: torch.Tensor = plane_states.clone()
+        self.local_plane_states: torch.Tensor = plane_states.clone()
         self.batch_size: int = self.plane_states.shape[0]
         self.total_nodes: int = total_nodes
         self.total_moves: int = board.height * board.width
@@ -159,14 +160,14 @@ class MCTS:
 
     # NEED TO MODIFY TO ACCOUNT FOR FINISHED GAMES
     # Its the two part in the definition of keep walking
-    def walk(self, plane_states) -> :
+    def walk(self, plane_states) -> torch.Tensor:
         """
         gets self.current index to unexpanded spot or winning spot
         using the MCTS decision function
         """
         # back to considered move
         self.current_index.zero_()
-        local_plane_states: torch.Tensor = plane_states.clone()
+        self.local_plane_states = plane_states.clone()
 
         self.select_moves()
         expanded_and_unexpanded = self.children[
@@ -179,8 +180,8 @@ class MCTS:
             walking_indices = self.indexer[keep_walking]
             walking_current_index = self.current_index[keep_walking]
             walking_moves = self.moves[keep_walking]
-            local_plane_states[keep_walking] = place_and_remove(
-                local_plane_states[keep_walking],
+            self.local_plane_states[keep_walking] = place_and_remove(
+                self.local_plane_states[keep_walking],
                 self.board,
                 self.masks,
                 walking_moves,
@@ -195,4 +196,4 @@ class MCTS:
             keep_walking = (expanded_and_unexpanded) != -1 & (
                 expanded_and_unexpanded != 2
             )
-        return local_plane_states
+        return self.local_plane_states
