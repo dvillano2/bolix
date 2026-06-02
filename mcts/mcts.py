@@ -99,9 +99,15 @@ class MCTS:
         not_over = logits[:, 0] != 2
         not_over_indexer = self.indexer[not_over]
         not_over_free_index = self.free_index[not_over]
-        self.policy[not_over_indexer, not_over_free_index, :] = logits[not_over]
-        self.parents[not_over_indexer, not_over_free_index, 0] = self.current_index[not_over]
-        self.parents[not_over_indexer, not_over_free_index, 1] = self.moves[not_over]
+        self.policy[not_over_indexer, not_over_free_index, :] = logits[
+            not_over
+        ]
+        self.parents[not_over_indexer, not_over_free_index, 0] = (
+            self.current_index[not_over]
+        )
+        self.parents[not_over_indexer, not_over_free_index, 1] = self.moves[
+            not_over
+        ]
         # update the first move anscetor
         parent_first_move = self.first_move_ancestor[
             self.indexer, self.current_index
@@ -114,9 +120,11 @@ class MCTS:
         )
 
         ####
-        self.children[not_over_indexer, self.current_index[not_over], self.moves[not_over]] = (
-            self.free_index[not_over]
-        )
+        self.children[
+            not_over_indexer,
+            self.current_index[not_over],
+            self.moves[not_over],
+        ] = self.free_index[not_over]
         self.current_index[not_over] = self.free_index[not_over]
         self.free_index[not_over] += 1
 
