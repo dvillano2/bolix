@@ -177,14 +177,14 @@ class MCTS:
 
     # NEED TO MODIFY TO ACCOUNT FOR FINISHED GAMES
     # Its the two part in the definition of keep walking
-    def walk(self, plane_states) -> torch.Tensor:
+    def walk(self) -> torch.Tensor:
         """
         gets self.current index to unexpanded spot or winning spot
         using the MCTS decision function
         """
         # back to considered move
         self.current_index.zero_()
-        self.local_plane_states = plane_states.clone()
+        self.local_plane_states = self.plane_states.clone()
 
         # set the sign tracker to one and indexer to zeros
         self.sign_tracker.zero_()
@@ -225,3 +225,20 @@ class MCTS:
             )
 
         return self.local_plane_states
+
+    def single_simulation(self):
+        self.walk()
+        logits, values = self.model.forward_with_wins()
+        self.expand(logits)
+        self.backtrack(values)
+
+    def recommend_moves(self, num_simulations: int | None):
+        """
+        look into parallelizing (will invovle waiting)
+        might not be worth it after profiling, but could be fun
+        """
+        if num_simulations is None:
+            num_simulations = self.total_nodes
+        for _ in range(num_simulations):
+            self.single_simulation()
+        return torch.argmax(self.visits[:, 0], dim=1)
